@@ -29,7 +29,6 @@ namespace nusquids{
         this->production_height = production_height;
         this->detector_depth = detector_depth;
         
-std::cout << "zang=" << zenith_angle*180./units.pi << " h=" << production_height/units.km << " d=" << detector_depth/units.km << std::endl;
         if (zenith_angle == 0.0) {
             L = production_height + detector_depth;
         } else if (zenith_angle == units.pi) {
@@ -39,10 +38,8 @@ std::cout << "zang=" << zenith_angle*180./units.pi << " h=" << production_height
             double sinbeta = (MyEarthAtm::GetEarthRadius() - detector_depth) / (MyEarthAtm::GetEarthRadius() + production_height) * singamma;
             double sinalpha = sin(zenith_angle - asin(sinbeta)); // pi - (pi - zenith_angle) - beta
             L = (MyEarthAtm::GetEarthRadius() + production_height) * sinalpha / singamma;
-            std::cout << "singamma=" << singamma << " sinbeta=" << sinbeta << " sinalpha=" << sinalpha << std::endl;
         }
         
-std::cout << "L=" << L/units.km << std::endl;
         x = 0.0;
         xini = 0.0;
         xend = L;
@@ -54,7 +51,6 @@ std::cout << "L=" << L/units.km << std::endl;
         
         double cosbeta = (L*L + c*c - b*b) / (2.*L*c);
         double r = x*x + c*c -2.*x*c*cosbeta;
-//std::cout << "L=" << L << " x=" << x << " r=" << r << std::endl;
         return r;
     }
     
