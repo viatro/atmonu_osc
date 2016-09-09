@@ -4,16 +4,43 @@
 #include "Math/Functor.h"
 #include "Math/Integrator.h"
 
+#include "TFile.h"
+#include "TNtupleD.h"
+#include "TString.h"
 #include "TStopwatch.h"
 
 #include <array>
-#include <tuple>
 #include <map>
 #include <iostream>
+#include <string>
+#include <vector>
+
+#include "/home/victor/include/ezOptionParser-0.2.2/ezOptionParser.hpp"
 
 using namespace nusquids;
 
 squids::Const units;
+
+namespace std
+{
+    template<typename T, size_t N>
+    struct hash<array<T, N> >
+    {
+        typedef array<T, N> argument_type;
+        typedef size_t result_type;
+
+        result_type operator()(const argument_type& a) const
+        {
+            hash<T> hasher;
+            result_type h = 0;
+            for (result_type i = 0; i < N; ++i)
+            {
+                h = h * 31 + hasher(a[i]);
+            }
+            return h;
+        }
+    };
+}
 
 class MyEarthAtmIntegrator {
   
@@ -65,15 +92,14 @@ class MyEarthAtmIntegrator {
     {
         static double storage_energy;
         static std::array<double, 3> storage_inistate;
-        static std::tuple<double, double, double> storage_key;
-        static std::map<std::tuple<double, double, double>, std::array<double, 3> > storage;
+        static std::array<double, 3> storage_key;
+        static std::map<std::array<double, 3>, std::array<double, 3> > storage;
         
-        storage_key = std::make_tuple(zenith_angle, production_height, detector_depth);
+        storage_key = {zenith_angle, production_height, detector_depth};
         
         if (energy == storage_energy) {
             if (ini_state == storage_inistate) {
                 if (storage.count(storage_key)) {
-//std::cout << "." << std::flush;
                     return storage[storage_key][out_flv];
                 }
             } else {
@@ -85,7 +111,6 @@ class MyEarthAtmIntegrator {
             storage_inistate = ini_state;
             storage.clear();
         }
-        
         
         //Set energy
         nus->Set_E(energy);
@@ -100,12 +125,9 @@ class MyEarthAtmIntegrator {
         nus->Set_Track(track);
         //Propagate the neutrinos in the earth for the path defined in path
         nus->EvolveState();
-        //Return probability for out_flv neutrino flavor
         
-        for (unsigned int i = 0; i < 3; ++i) {
-            storage[storage_key][i] = nus->EvalFlavor(i);
-        }
-//std::cout << " " << std::flush;
+        storage.emplace(storage_key, std::array<double, 3>{nus->EvalFlavor(0), nus->EvalFlavor(1), nus->EvalFlavor(2)});
+        //Return probability for out_flv neutrino flavor
         return nus->EvalFlavor(out_flv);
     }
     
@@ -172,21 +194,105 @@ class MyEarthAtmIntegrator {
     
 };
 
-int main() {
+ez::ezOptionParser opt;
+
+void CmdLineOptions(int argc, const char** argv) {
+    opt.overview = ""; // General description in human language on what the user's tool does. (1st section)
+    opt.syntax = "atmonu_osc [OPTIONS]"; // A synopsis of command and options usage to show expected order of input arguments. (2nd section)
+    opt.example = "EXAMPLE"; // Example. (3rd section)
+    opt.footer = "FOOTER"; // Final section printed in usage message. For contact, copyrights, version info.
+    
+    /*
+    opt.add(
+		Default,
+		Required?,
+		Number of args expected,
+		Delimiter if expecting multiple args,
+		Help description,
+		Flag token,
+		Flag token,
+		Flag token,
+		Flag token
+	);
+    */
+    
+    opt.add("", 0, 0,   0, "Display usage instructions.", "-h", "-help", "--help", "-?" );
+    opt.add("", 1, 3, ',', "Set initial probabilities state.", "-i", "--inistate", "--initial-state" );
+    opt.add("", 1, 3, ',', "Set energy for-loop parameters [in MeV].", "-e", "--energy", "--energy-loop" );
+    opt.add("", 0, 2, ',', "Output ROOT file & TTree names.", "-o", "--output", "--output-file" );
+    
+    opt.parse(argc, argv);
+    
+    if (opt.isSet("-h")) {
+		std::string usage;
+        opt.getUsage(usage);
+        std::cout << usage << std::endl;
+		exit(0);
+	}
+    
+    std::vector<std::string> badOptions;
+	if(!opt.gotRequired(badOptions)) {
+		for(size_t i = 0; i < badOptions.size(); ++i)
+			std::cerr << "ERROR: Missing required option " << badOptions[i] << ".\n\n";
+		std::string usage;
+        opt.getUsage(usage);
+        std::cout << usage << std::endl;
+		exit(1);
+	}
+    
+    if(!opt.gotExpected(badOptions)) {
+		for(size_t i = 0; i < badOptions.size(); ++i)
+			std::cerr << "ERROR: Got unexpected number of arguments for option " << badOptions[i] << ".\n\n";
+		std::string usage;
+        opt.getUsage(usage);
+        std::cout << usage << std::endl;
+		exit(1);
+	}
+}
+
+int main(int argc, const char** argv) {
+    
+    CmdLineOptions(argc, argv);
+    
+    std::vector<double> OPT_inistate;
+    opt.get("-i")->getDoubles(OPT_inistate);
+    
+    std::vector<double> OPT_energy_loop;
+    opt.get("-e")->getDoubles(OPT_energy_loop);
+    
+    TString filename = TString::Format("atmonu_osc_integrated_inistate(%g,%g,%g)_energies(%g,%g,%g)MeV.root",
+                                        OPT_inistate[0], OPT_inistate[1], OPT_inistate[2],
+                                        OPT_energy_loop[0], OPT_energy_loop[1], OPT_energy_loop[2]
+                                      );
+    TString treename = "atmonu_osc";
+    
+    if (opt.isSet("-o")) {
+        std::vector<std::string> OPT_file_and_tree;
+        opt.get("-o")->getStrings(OPT_file_and_tree);
+        filename = OPT_file_and_tree[0];
+        treename = OPT_file_and_tree[1];
+    }
+    
+    TFile *file = TFile::Open(filename, "recreate");
+    TNtupleD *tree = new TNtupleD(treename, "", "energy:ini_prob_nu_e:ini_prob_nu_mu:ini_prob_nu_tau:final_prob_nu_e:final_prob_nu_mu:final_prob_nu_tau:cpu_time");
+    tree->SetAutoSave(1);
     
     MyEarthAtmIntegrator meai(neutrino);
     TStopwatch timer;
+    std::array<double, 3> final_state;
     
-    for (double EE : linspace(100.*units.MeV, 1000.*units.MeV, 9)) {
-        std::cout << EE/units.MeV << " MeV:\t\t" << std::flush;
+    for (double EE = OPT_energy_loop[0]; EE <= OPT_energy_loop[1]; EE += OPT_energy_loop[2]) {
         timer.Start();
         for(unsigned int i = 0; i < 3; i++){
-            std::cout << meai.EvalFlavorIntegrated(i, EE, {0., 1., 0.}) << " " << std::flush;
+            final_state[i] = meai.EvalFlavorIntegrated(i, EE*units.MeV, {OPT_inistate[0], OPT_inistate[1], OPT_inistate[2]});
         }
         timer.Stop();
-        std::cout << "\t\t=>\tcpu_time: " << timer.CpuTime() << "\treal_time: " << timer.RealTime() << std::endl;
+        std::cout << TString::Format("%8.3f MeV:    %12.10f  %12.10f  %12.10f    =>  cputime %12.5f", EE, final_state[0], final_state[1], final_state[2], timer.CpuTime()) << std::endl;
+        tree->Fill(EE, OPT_inistate[0], OPT_inistate[1], OPT_inistate[2], final_state[0], final_state[1], final_state[2], timer.CpuTime());
     }
     
+    tree->Write(0,TObject::kOverwrite);
+    file->Close();
 
     return 0;
 }
