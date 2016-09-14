@@ -126,7 +126,9 @@ class MyEarthAtmIntegrator {
         //Propagate the neutrinos in the earth for the path defined in path
         nus->EvolveState();
         
-        storage.emplace(storage_key, std::array<double, 3>{nus->EvalFlavor(0), nus->EvalFlavor(1), nus->EvalFlavor(2)});
+        if (storage.size() < 50000000) {
+            storage.emplace(storage_key, std::array<double, 3>{nus->EvalFlavor(0), nus->EvalFlavor(1), nus->EvalFlavor(2)});
+        }
         //Return probability for out_flv neutrino flavor
         return nus->EvalFlavor(out_flv);
     }
@@ -260,7 +262,7 @@ int main(int argc, const char** argv) {
     std::vector<double> OPT_energy_loop;
     opt.get("-e")->getDoubles(OPT_energy_loop);
     
-    TString filename = TString::Format("atmonu_osc_integrated_inistate(%g,%g,%g)_energies(%g,%g,%g)MeV.root",
+    TString filename = TString::Format("atmonu_osc_integrated_inistate-%g,%g,%g_energies-%g-%g-%g_MeV.root",
                                         OPT_inistate[0], OPT_inistate[1], OPT_inistate[2],
                                         OPT_energy_loop[0], OPT_energy_loop[1], OPT_energy_loop[2]
                                       );
@@ -281,7 +283,7 @@ int main(int argc, const char** argv) {
     TStopwatch timer;
     std::array<double, 3> final_state;
     
-    for (double EE = OPT_energy_loop[0]; EE <= OPT_energy_loop[1]; EE += OPT_energy_loop[2]) {
+    for (double EE = OPT_energy_loop[1]; EE >= OPT_energy_loop[0]; EE -= OPT_energy_loop[2]) {
         timer.Start();
         for(unsigned int i = 0; i < 3; i++){
             final_state[i] = meai.EvalFlavorIntegrated(i, EE*units.MeV, {OPT_inistate[0], OPT_inistate[1], OPT_inistate[2]});

@@ -40,8 +40,7 @@ namespace nusquids{
             L = (MyEarthAtm::GetEarthRadius() + production_height) * sinalpha / singamma;
         }
         
-        x = 0.0;
-        xini = 0.0;
+        x = xini = 0.0;
         xend = L;
     }
     
@@ -50,7 +49,7 @@ namespace nusquids{
         double b = MyEarthAtm::GetEarthRadius() - detector_depth;
         
         double cosbeta = (L*L + c*c - b*b) / (2.*L*c);
-        double r = x*x + c*c -2.*x*c*cosbeta;
+        double r = sqrt(x*x + c*c -2.*x*c*cosbeta);
         return r;
     }
     

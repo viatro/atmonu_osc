@@ -27,7 +27,7 @@ namespace nusquids{
         /// \brief Atmosphere temperature parameters map
         std::map<double, std::array<double, 3> > atmo_temperature_map;
         /// \brief Earth electron fraction map
-        std::map<double, double> ye_map; // !!! Use map::lower_bound !!!
+        std::map<double, double> ye_map;
       
       public:
         /// \brief Default constructor using supplied PREM.
